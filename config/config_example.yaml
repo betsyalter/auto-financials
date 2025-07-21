@@ -1,0 +1,15 @@
+api:
+  base_url: "https://discovery-api.tegus.com/api"
+  api_key: "YOUR_API_KEY_HERE"  # Replace with your actual API key
+  
+excel:
+  output_dir: "outputs/excel"
+  
+csv:
+  output_dir: "outputs/csv"
+  
+logging:
+  level: "INFO"
+  
+refresh:
+  schedule_time: "06:00"  # 6am PT

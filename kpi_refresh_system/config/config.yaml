@@ -1,0 +1,22 @@
+api:
+  base_url: "https://mds.canalyst.com/api"  # Canalyst Model Data Service API
+  timeout: 30
+  max_retries: 3
+  rate_limit:
+    requests_per_second: 5  # Based on API docs throttling
+
+processing:
+  batch_size: 20
+  parallel_workers: 4
+
+periods:
+  historical_quarters: 12  # Q1-25 back to Q2-22
+  historical_years: 5      # FY24 back to FY20
+  
+export:
+  excel_path: "data/output"
+  csv_path: "data/csv"
+  
+scheduling:
+  daily_refresh_time: "06:00"
+  timezone: "America/Los_Angeles"
