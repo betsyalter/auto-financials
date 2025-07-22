@@ -15,7 +15,7 @@ def to_excel_multi_sheets(data_dict: Dict[str, pd.DataFrame], file_name: str) ->
     """
     buffer = io.BytesIO()
     
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         for company_name, df in data_dict.items():
             # Excel sheet names have a 31 character limit and certain characters are not allowed
             sheet_name = company_name[:31]
@@ -26,11 +26,19 @@ def to_excel_multi_sheets(data_dict: Dict[str, pd.DataFrame], file_name: str) ->
             # Write DataFrame to sheet
             df.to_excel(writer, sheet_name=sheet_name, index=True)
             
-            # Auto-adjust column widths
+            # Auto-adjust column widths using openpyxl
             worksheet = writer.sheets[sheet_name]
-            for idx, col in enumerate(df.columns):
-                max_len = max(df[col].astype(str).map(len).max(), len(str(col))) + 2
-                worksheet.set_column(idx + 1, idx + 1, min(max_len, 50))  # +1 because of index
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
     
     buffer.seek(0)
     return buffer.getvalue(), file_name
