@@ -39,6 +39,8 @@ data/processed/
 # OS
 .DS_Store
 Thumbs.db
+**/C*Users*Betsy*
+**/C:*Users*
 
 # Jupyter
 .ipynb_checkpoints/
