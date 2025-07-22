@@ -23,7 +23,7 @@ from src.display_utils import (
 from csin_discovery import CSINDiscoveryTool
 from main import KPIRefreshApp
 
-# Page config
+# Page config - Force rebuild
 st.set_page_config(
     page_title="Financial Data Explorer",
     page_icon="📊",
