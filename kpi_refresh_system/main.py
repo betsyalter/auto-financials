@@ -26,16 +26,23 @@ class KPIRefreshApp:
         self.config = load_config(config_path)
         self.setup_logging()
         
-        # Load mappings
-        # Try direct path first (for deployment), then resolve_path
-        company_mappings_path = Path('config/company_mappings.csv')
+        # Load mappings with robust path handling
+        ROOT = Path(__file__).resolve().parent  # points to kpi_refresh_system/
+        
+        company_mappings_path = ROOT / "config" / "company_mappings.csv"
         if not company_mappings_path.exists():
-            company_mappings_path = resolve_path('kpi_refresh_system', 'config', 'company_mappings.csv')
+            raise FileNotFoundError(
+                f"company_mappings.csv not found at {company_mappings_path}. "
+                "Make sure the file is committed to git and the path is correct."
+            )
         self.company_mappings = pd.read_csv(company_mappings_path)
         
-        kpi_mappings_path = Path('config/kpi_mappings.csv')
+        kpi_mappings_path = ROOT / "config" / "kpi_mappings.csv"
         if not kpi_mappings_path.exists():
-            kpi_mappings_path = resolve_path('kpi_refresh_system', 'config', 'kpi_mappings.csv')
+            raise FileNotFoundError(
+                f"kpi_mappings.csv not found at {kpi_mappings_path}. "
+                "Make sure the file is committed to git and the path is correct."
+            )
         self.kpi_mappings = pd.read_csv(kpi_mappings_path)
         
         # Initialize components

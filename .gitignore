@@ -43,3 +43,7 @@ Thumbs.db
 
 # Keep example config
 !config/config_example.yaml
+
+# Keep required CSV mapping files
+!kpi_refresh_system/config/company_mappings.csv
+!kpi_refresh_system/config/kpi_mappings.csv

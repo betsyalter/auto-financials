@@ -1,0 +1,22 @@
+search_ticker,found_via,company_id,csin,name,ticker_canalyst,ticker_bloomberg,sector,country,in_coverage
+AAPL,canalyst,Y8S4N8,Y8S4N80124,Apple Inc.,AAPL_US,AAPL US,Sectors:Us Companies:Information Technology:Hardware:Industrial Supply Chain,us,True
+MSFT,canalyst,Y1HZ7B,Y1HZ7B0124,Microsoft Corporation,MSFT_US,MSFT US,Sectors:Us Companies:Information Technology:Software:Productivity Software Tools,us,True
+GOOGL,canalyst,U07N2S,U07N2S0124,Alphabet Inc.,GOOGL_US,GOOGL US,Sectors:Us Companies:Communication Services:Interactive Media Services,us,True
+AMZN,canalyst,LZMYHJ,LZMYHJ0124,"Amazon.com, Inc.",AMZN_US,AMZN US,Sectors:Us Companies:Consumer Discretionary:Online Product Services:Internet Direct Retail,us,True
+META,canalyst,T897CE,T897CE0124,"Meta Platforms, Inc.",META_US,META US,Sectors:Us Companies:Communication Services:Interactive Media Services,us,True
+TSLA,canalyst,GMEG0H,GMEG0H0124,"Tesla, Inc.",TSLA_US,TSLA US,Sectors:Us Companies:Consumer Discretionary:Automobiles Components:Automobile Manufacturers,us,True
+NVDA,canalyst,A7FLSL,A7FLSL0124,NVIDIA Corporation,NVDA_US,NVDA US,Sectors:Us Companies:Information Technology:Hardware:Semiconductors,us,True
+JPM,canalyst,3FRM7X,3FRM7X0124,JPMorgan Chase & Co.,JPM_US,JPM US,Sectors:Us Companies:Financials:Banks:Diversified Banks,us,True
+V,canalyst,2CRCA6,2CRCA60124,Visa Inc.,V_US,V US,Sectors:Us Companies:Financials:Consumer Finance:Payment Services,us,True
+JNJ,canalyst,EOUN4X,EOUN4X0124,Johnson & Johnson,JNJ_US,JNJ US,Sectors:Us Companies:Health Care:Pharmaceuticals:Large Cap Pharma,us,True
+WMT,canalyst,42E8ME,42E8ME0124,"Wal-Mart Stores, Inc.",WMT_US,WMT US,Sectors:Us Companies:Consumer Staples:Food Beverage:Hypermarkets Super Centers,us,True
+PG,canalyst,WTT1P3,WTT1P30124,The Procter & Gamble Company,PG_US,PG US,Sectors:Us Companies:Consumer Staples:Homes Household Products:Household Products,us,True
+UNH,canalyst,MRG4VC,MRG4VC0124,UnitedHealth Group,UNH_US,UNH US,Sectors:Us Companies:Health Care:Managed Care,us,True
+HD,canalyst,AW234E,AW234E0124,"The Home Depot, Inc.",HD_US,HD US,Sectors:Us Companies:Consumer Discretionary:Homes Household Products:Home Improvement Retail,us,True
+MA,canalyst,GSYQ3D,GSYQ3D0124,Mastercard Incorporated,MA_US,MA US,Sectors:Us Companies:Financials:Consumer Finance:Payment Services,us,True
+DIS,canalyst,YIW8LT,YIW8LT0124,The Walt Disney Company,DIS_US,DIS US,Sectors:Us Companies:Communication Services:Movies Entertainment,us,True
+BAC,canalyst,RFRIY0,RFRIY00124,Bank of America Corporation,BAC_US,BAC US,Sectors:Us Companies:Financials:Banks:Diversified Banks,us,True
+ABBV,canalyst,GRKK2P,GRKK2P0124,AbbVie Inc.,ABBV_US,ABBV US,Sectors:Us Companies:Health Care:Biotechnology:Large Cap Biotech,us,True
+XOM,canalyst,DCTY8B,DCTY8B0124,Exxon Mobil Corporation,XOM_US,XOM US,Sectors:Us Companies:Energy:Integrateds,us,True
+CVX,canalyst,Z99BO0,Z99BO00124,Chevron Corporation,CVX_US,CVX US,Sectors:Us Companies:Energy:Integrateds,us,True
+AEO,canalyst,AGMNEP,AGMNEP0124,American Eagle Outfitters Inc.,AEO_US,AEO US,Sectors:Us Companies:Consumer Discretionary:Apparel Accessories Luxury:Apparel Retail,us,True

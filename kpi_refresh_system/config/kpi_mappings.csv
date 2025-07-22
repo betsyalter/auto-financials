@@ -1,0 +1,4 @@
+company_id,time_series_name,time_series_slug,kpi_label,units,category,all_names,priority
+AGMNEP,MO_OS_OnlineSalesPerc,online-sales-as-of-total,"Online sales as % of total sales, %",Percentage,Key Metrics - Online Sales Stats (FS),MO_OS_OnlineSalesPerc|z_AGMNEP0165_MO_OS_Onlinesalesasoftotalsales,1
+AGMNEP,MO_OS_REV_DTC_Online,online-sales-calculated,"Online sales (calculated), mm",USD,Key Metrics - Online Sales Stats (FS),MO_OS_REV_DTC_Online|z_AGMNEP0165_MO_OS_Onlinesalescalculated,1
+AGMNEP,MO_GA_REV_DTC_Online,online-sales-growth,"Online sales growth, %",Percentage,Key Metrics - Online Sales Stats (FS),MO_GA_REV_DTC_Online|z_AGMNEP0165_MO_OS_Onlinesalesgrowth,1

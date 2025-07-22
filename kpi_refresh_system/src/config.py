@@ -10,12 +10,9 @@ def load_config(config_path: str = "config/config.yaml") -> dict:
     # Load environment variables
     load_dotenv()
     
-    # Load YAML config
-    # First try direct path (for when running from within kpi_refresh_system)
-    config_file = Path(config_path)
-    if not config_file.exists():
-        # Then try with resolve_path (for when running from parent directory)
-        config_file = resolve_path('kpi_refresh_system', config_path)
+    # Load YAML config with robust path handling
+    ROOT = Path(__file__).resolve().parents[1]  # points to kpi_refresh_system/
+    config_file = ROOT / config_path
     if not config_file.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
     
