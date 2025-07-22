@@ -31,11 +31,15 @@ A comprehensive Python-based system for automated financial KPI tracking using t
    pip install -r requirements.txt
    ```
 
-3. **Set up environment**
+3. **Set up your API key securely**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your Canalyst API token
+   # Run the secure setup script
+   python setup_api_key.py
    ```
+   
+   This will prompt you for your Canalyst API token and store it securely in a `.env` file that is NOT tracked by git.
+   
+   **⚠️ Security Note**: Never commit your API key to git. Each team member must run this setup locally.
 
 ## 🔧 Configuration
 
