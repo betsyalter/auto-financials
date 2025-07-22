@@ -17,19 +17,10 @@ from src.config import load_config
 from src.canalyst_client import CanalystClient
 from src.display_utils import (
     sort_period, format_value, check_needs_mm, add_mm_suffix,
-    format_dataframe_for_display, create_period_columns
+    create_line_chart, create_bar_chart, format_dataframe_for_display,
+    create_period_columns
 )
 from src.utils.export_utils import to_excel_multi_sheets
-from src.services.kpi_service import KPIService
-from src.components.charts import (
-    create_line_chart, create_bar_chart, 
-    create_multi_company_comparison_chart,
-    create_growth_comparison_chart
-)
-from src.components.tables import (
-    prepare_display_dataframe, format_table_for_display,
-    create_metric_selection_df, prepare_excel_export_data
-)
 from csin_discovery import CSINDiscoveryTool
 from main import KPIRefreshApp
 
@@ -59,11 +50,6 @@ st.markdown("""
 # Initialize session state
 if 'app' not in st.session_state:
     st.session_state.app = KPIRefreshApp()
-    st.session_state.kpi_service = KPIService(
-        st.session_state.app.client,
-        st.session_state.app.processor,
-        st.session_state.app.company_mappings
-    )
     st.session_state.selected_ticker = None
     st.session_state.company_data = None
     st.session_state.selected_kpis = []
@@ -727,33 +713,124 @@ if (hasattr(st.session_state, 'company_data') and st.session_state.company_data)
                     with st.spinner("Fetching financial data..."):
                         try:
                             if st.session_state.is_multi_company:
-                                # Multi-company data fetching - use KPIService
-                                all_company_data = st.session_state.kpi_service.fetch_multi_company_data(
-                                    st.session_state.companies_data,
-                                    st.session_state.selected_kpis,
-                                    st.session_state.model_versions,
-                                    st.session_state.all_companies_metrics
-                                )
+                                # Multi-company data fetching
+                                all_company_data = {}
+                                
+                                for ticker, company in st.session_state.companies_data.items():
+                                    company_id = company['company_id']
+                                    model_version = st.session_state.model_versions[ticker]
+                                    
+                                    # Get the specific metrics for this company
+                                    company_metrics = st.session_state.all_companies_metrics[ticker]
+                                    
+                                    # Map selected KPIs to this company's metrics
+                                    temp_kpis = []
+                                    for i, selected_ts in enumerate(st.session_state.selected_kpis):
+                                        # Find matching metric for this company
+                                        matching_metric = next(
+                                            (m for m in company_metrics 
+                                             if m['description'].lower() == selected_ts['description'].lower()),
+                                            None
+                                        )
+                                        
+                                        if matching_metric:
+                                            temp_kpis.append({
+                                                'company_id': company_id,
+                                                'time_series_name': matching_metric['names'][0],
+                                                'time_series_slug': matching_metric['slug'],
+                                                'kpi_label': matching_metric['description'],
+                                                'units': matching_metric['unit']['description'],
+                                                'category': matching_metric['category']['description'],
+                                                'all_names': ','.join(matching_metric['names']),
+                                                'priority': i + 1
+                                            })
+                                    
+                                    temp_kpi_df = pd.DataFrame(temp_kpis)
+                                    
+                                    # Fetch data for this company
+                                    historical_data = []
+                                    for _, kpi in temp_kpi_df.iterrows():
+                                        hist = st.session_state.app.client.get_historical_data_points(
+                                            company_id,
+                                            model_version,
+                                            kpi['time_series_name']
+                                        )
+                                        historical_data.extend(hist)
+                                    
+                                    # Get periods
+                                    hist_periods_data = st.session_state.app.client.get_historical_periods(
+                                        company_id, 
+                                        model_version
+                                    )
+                                    
+                                    # Process data
+                                    api_data = {
+                                        'historical_data': historical_data,
+                                        'forecast_data': [],
+                                        'periods': hist_periods_data,
+                                        'time_series_info': temp_kpi_df.to_dict('records')
+                                    }
+                                    
+                                    df = st.session_state.app.processor.process_company_data(
+                                        company_id, 
+                                        api_data,
+                                        temp_kpi_df
+                                    )
+                                    
+                                    all_company_data[ticker] = df
                                 
                                 st.session_state.fetched_data = all_company_data
                                 st.success(f"Data fetched successfully for {len(all_company_data)} companies!")
                                 
                             else:
-                                # Single company mode - use KPIService
+                                # Single company mode (existing logic)
                                 company = st.session_state.company_data
                                 company_id = company['company_id']
                                 
-                                # Prepare KPI mappings using service
-                                temp_kpi_df = st.session_state.kpi_service.prepare_single_company_kpis(
+                                # Save temporary KPI mappings
+                                temp_kpis = []
+                                for i, ts in enumerate(st.session_state.selected_kpis):
+                                    temp_kpis.append({
+                                        'company_id': company_id,
+                                        'time_series_name': ts['names'][0],
+                                        'time_series_slug': ts['slug'],
+                                        'kpi_label': ts['description'],
+                                        'units': ts['unit']['description'],
+                                        'category': ts['category']['description'],
+                                        'all_names': ','.join(ts['names']),
+                                        'priority': i + 1
+                                    })
+                                
+                                temp_kpi_df = pd.DataFrame(temp_kpis)
+                                
+                                # Fetch data
+                                historical_data = []
+                                for _, kpi in temp_kpi_df.iterrows():
+                                    hist = st.session_state.app.client.get_historical_data_points(
+                                        company_id,
+                                        st.session_state.model_version,
+                                        kpi['time_series_name']
+                                    )
+                                    historical_data.extend(hist)
+                                
+                                # Get periods
+                                hist_periods_data = st.session_state.app.client.get_historical_periods(
                                     company_id, 
-                                    st.session_state.selected_kpis
+                                    st.session_state.model_version
                                 )
                                 
-                                # Fetch data using service
-                                df = st.session_state.kpi_service.fetch_kpi_data(
-                                    company_id,
-                                    temp_kpi_df,
-                                    st.session_state.model_version
+                                # Process data
+                                api_data = {
+                                    'historical_data': historical_data,
+                                    'forecast_data': [],
+                                    'periods': hist_periods_data,
+                                    'time_series_info': temp_kpi_df.to_dict('records')
+                                }
+                                
+                                df = st.session_state.app.processor.process_company_data(
+                                    company_id, 
+                                    api_data,
+                                    temp_kpi_df
                                 )
                                 
                                 # Check for KPIs with mostly missing values
@@ -1418,27 +1495,99 @@ if st.session_state.fetched_data is not None:
             if selected_metrics:
                 # Extract just the indices from selected tuples
                 selected_indices = [item[0] for item in selected_metrics]
+            
+                # Build list of indices to keep
+                indices_to_keep = []
+                for idx in selected_indices:
+                    indices_to_keep.append(idx)  # Base metric
+                    
+                    # Add growth metrics based on selection
+                    if show_qoq:
+                        qoq_idx = idx[:-1] + ('qoq growth',)
+                        if qoq_idx in df.index:
+                            indices_to_keep.append(qoq_idx)
+                    
+                    if show_yoy:
+                        yoy_idx = idx[:-1] + ('yoy growth',)
+                        if yoy_idx in df.index:
+                            indices_to_keep.append(yoy_idx)
                 
-                # Use table component to prepare display dataframe
-                display_df = prepare_display_dataframe(
-                    df, 
-                    selected_indices,
-                    show_qoq=show_qoq,
-                    show_yoy=show_yoy
-                )
+                # Filter and reorder dataframe
+                display_df = df.loc[indices_to_keep]
             else:
                 st.warning("Please select at least one metric to display")
                 display_df = pd.DataFrame()  # Empty dataframe
             
-            # Format table for display using table component
+            # Check which rows need ", mm" suffix (values >= 1M) BEFORE formatting
+            needs_mm = {}
             if not display_df.empty:
-                formatted_df = format_table_for_display(
-                    display_df,
-                    show_qoq=show_qoq,
-                    show_yoy=show_yoy
-                )
+                for idx in display_df.index:
+                    if len(idx) == 4 and pd.isna(idx[3]):  # Base row only
+                        row_values = display_df.loc[idx]
+                        # Check if any value in this row is >= 1M
+                        needs_mm[idx] = any(abs(val) >= 1000000 for val in row_values if pd.notna(val))
+            
+            # Create a copy and modify the index to add mm suffix
+            display_df_copy = display_df.copy()
+            new_multiindex = []
+            for idx in display_df_copy.index:
+                if len(idx) == 4:
+                    # Create a new tuple with modified description
+                    if pd.isna(idx[3]) and needs_mm.get(idx, False) and ", mm" not in idx[1]:
+                        new_idx = (idx[0], f"{idx[1]}, mm", idx[2], idx[3])
+                    elif pd.notna(idx[3]):
+                        # For growth rows, check if base needs mm
+                        base_idx = idx[:-1] + (pd.NA,)
+                        if needs_mm.get(base_idx, False) and ", mm" not in idx[1]:
+                            new_idx = (idx[0], f"{idx[1]}, mm", idx[2], idx[3])
+                        else:
+                            new_idx = idx
+                    else:
+                        new_idx = idx
+                    new_multiindex.append(new_idx)
+                else:
+                    new_multiindex.append(idx)
+            
+            display_df_copy.index = pd.MultiIndex.from_tuples(new_multiindex)
+            
+            # Create a formatted copy for display using utility function
+            formatted_df = format_dataframe_for_display(
+                display_df_copy,
+                include_growth={'qoq': show_qoq, 'yoy': show_yoy}
+            )
+            
+            # Remove the first level of the index (KPI code) and create new index
+            new_index = []
+            for idx in formatted_df.index:
+                if len(idx) == 4 and pd.isna(idx[3]):
+                    # Base row: show description only
+                    new_index.append(idx[1])
+                elif len(idx) == 4 and pd.notna(idx[3]):
+                    # Growth row: show description + growth type
+                    new_index.append(f"{idx[1]} - {idx[3]}")
+            
+            
+            # Check for duplicates and make unique if necessary
+            if len(new_index) != len(set(new_index)):
+                # Add counter to duplicates
+                seen = {}
+                unique_index = []
+                for idx in new_index:
+                    if idx in seen:
+                        seen[idx] += 1
+                        unique_index.append(f"{idx} ({seen[idx]})")
+                    else:
+                        seen[idx] = 0
+                        unique_index.append(idx)
+                formatted_df.index = unique_index
             else:
-                formatted_df = display_df
+                formatted_df.index = new_index
+            
+            # Guarantee uniqueness - only reset if not unique
+            if not formatted_df.index.is_unique:
+                formatted_df = formatted_df.reset_index(drop=True)
+            if not formatted_df.columns.is_unique:
+                formatted_df.columns = pd.io.parsers.ParserBase({'names':formatted_df.columns})._maybe_dedup_names(formatted_df.columns)
             
             # Display without styling
             st.dataframe(
