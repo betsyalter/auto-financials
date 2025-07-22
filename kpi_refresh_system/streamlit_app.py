@@ -57,6 +57,41 @@ if 'app' not in st.session_state:
 
 # Header
 st.title("📊 Financial Data Explorer")
+
+# Instructions
+with st.expander("📖 How to Use This App", expanded=True):
+    st.markdown("""
+    ### Quick Start Guide
+    
+    **1️⃣ Search for Companies**
+    - **Single Company**: Enter one ticker (e.g., `AAPL` or `MSFT`)
+    - **Multiple Companies**: Enter comma-separated tickers (e.g., `AAPL, MSFT, GOOGL`)
+    
+    **2️⃣ Select Financial Metrics**
+    - **Single Company Mode**: Choose from categories, search, or pick common KPIs
+    - **Multi-Company Mode**: Create metric groups to compare similar metrics across companies
+    
+    **3️⃣ View Your Data**
+    - **Data Table**: See all values with growth metrics
+    - **Interactive Charts**: Visualize trends over time
+    - **Download**: Export to Excel for further analysis
+    
+    ### Tips
+    - 🔍 If a ticker doesn't work, try searching by company name in the terminal
+    - 📊 Use ", mm" suffix to show values in millions
+    - 📈 Toggle QoQ and YoY growth metrics on/off in table display
+    - 🏢 Compare companies in the same industry for best results
+    
+    ### Common Issues
+    - **"Company not found"**: Try different ticker format or use `python search_company.py "Company Name"`
+    - **Missing data**: Some companies may not have all metrics available
+    - **API errors**: Check your API key in the .env file
+    """)
+    
+    # Add a button to collapse instructions after reading
+    if st.button("Got it! Hide instructions"):
+        st.rerun()
+
 st.markdown("---")
 
 # Step 1: Company Search
