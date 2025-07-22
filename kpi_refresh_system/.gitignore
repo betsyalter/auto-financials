@@ -42,6 +42,10 @@ Thumbs.db
 **/C*Users*Betsy*
 **/C:*Users*
 
+# Prevent nested directories
+auto-financials/
+kpi_refresh_system/kpi_refresh_system/
+
 # Jupyter
 .ipynb_checkpoints/
 
