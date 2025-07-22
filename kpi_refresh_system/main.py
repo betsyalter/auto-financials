@@ -22,14 +22,15 @@ from csin_discovery import CSINDiscoveryTool
 from src.utils.paths import resolve_path
 
 class KPIRefreshApp:
-    def __init__(self, config_path: str = "config/config.yaml"):
+    def __init__(self, config_path: str = None):
+        # Use resolve_path for config file
+        if config_path is None:
+            config_path = str(resolve_path("kpi_refresh_system", "config", "config.yaml"))
         self.config = load_config(config_path)
         self.setup_logging()
         
-        # Load mappings with robust path handling
-        ROOT = Path(__file__).resolve().parent  # points to kpi_refresh_system/
-        
-        company_mappings_path = ROOT / "config" / "company_mappings.csv"
+        # Load mappings with resolve_path
+        company_mappings_path = resolve_path("kpi_refresh_system", "config", "company_mappings.csv")
         if not company_mappings_path.exists():
             raise FileNotFoundError(
                 f"company_mappings.csv not found at {company_mappings_path}. "
@@ -37,7 +38,7 @@ class KPIRefreshApp:
             )
         self.company_mappings = pd.read_csv(company_mappings_path)
         
-        kpi_mappings_path = ROOT / "config" / "kpi_mappings.csv"
+        kpi_mappings_path = resolve_path("kpi_refresh_system", "config", "kpi_mappings.csv")
         if not kpi_mappings_path.exists():
             raise FileNotFoundError(
                 f"kpi_mappings.csv not found at {kpi_mappings_path}. "
@@ -53,7 +54,7 @@ class KPIRefreshApp:
         
     def setup_logging(self):
         """Configure logging"""
-        log_path = Path('logs')
+        log_path = resolve_path('kpi_refresh_system', 'logs')
         log_path.mkdir(exist_ok=True)
         
         logger.add(
@@ -150,7 +151,7 @@ class KPIRefreshApp:
         
         if errors:
             error_df = pd.DataFrame(errors)
-            error_path = Path('logs') / f'errors_{datetime.now():%Y%m%d_%H%M%S}.csv'
+            error_path = resolve_path('kpi_refresh_system', 'logs') / f'errors_{datetime.now():%Y%m%d_%H%M%S}.csv'
             error_df.to_csv(error_path, index=False)
             logger.warning(f"Error details saved to {error_path}")
 
@@ -479,7 +480,7 @@ def bulk_find_csin(input_file, ticker_column, type):
     
     # Save results
     if not results_df.empty:
-        output_file = 'company_mappings_discovered.csv'
+        output_file = resolve_path('kpi_refresh_system', 'company_mappings_discovered.csv')
         results_df.to_csv(output_file, index=False)
         click.echo(f"\nResults saved to: {output_file}")
         

@@ -44,7 +44,10 @@ def load_data():
         df['period_date'] = pd.to_datetime(df['period_date'])
         
         # Load metadata
-        with open('data/csv/metadata.json', 'r') as f:
+        metadata_path = Path('data/csv/metadata.json')
+        if not metadata_path.exists():
+            metadata_path = resolve_path('kpi_refresh_system', 'data', 'csv', 'metadata.json')
+        with open(metadata_path, 'r') as f:
             metadata = json.load(f)
         
         return df, metadata
