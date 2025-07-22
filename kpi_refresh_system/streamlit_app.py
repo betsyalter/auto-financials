@@ -13,6 +13,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.config import load_config
 from src.canalyst_client import CanalystClient
+from src.display_utils import (
+    sort_period, format_value, check_needs_mm, add_mm_suffix,
+    create_line_chart, create_bar_chart, format_dataframe_for_display,
+    create_period_columns
+)
 from csin_discovery import CSINDiscoveryTool
 from main import KPIRefreshApp
 
@@ -837,6 +842,15 @@ if st.session_state.fetched_data is not None:
         display_tab1, display_tab2, display_tab3 = st.tabs(["📋 Data Table", "📊 Interactive Charts", "💾 Download"])
         
         with display_tab1:
+            # Table customization options
+            with st.expander("⚙️ Customize Table Display"):
+                st.write("**Growth metrics display:**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    show_qoq = st.checkbox("Show Quarter-over-Quarter growth", value=True, key="multi_qoq")
+                with col2:
+                    show_yoy = st.checkbox("Show Year-over-Year growth", value=True, key="multi_yoy")
+            
             if view_mode == "By Metric":
                 # Create comparison table by metric group
                 st.markdown("#### Comparison by Metric")
@@ -844,8 +858,6 @@ if st.session_state.fetched_data is not None:
                 # Use metric groups to create comparison tables
                 if 'metric_groups_used' in st.session_state:
                     for group in st.session_state.metric_groups_used:
-                        st.markdown(f"**{group['name']}**")
-                        
                         # Create comparison dataframe for this metric group
                         comparison_data = []
                         
@@ -895,14 +907,48 @@ if st.session_state.fetched_data is not None:
                                                         else:
                                                             base_values[period] = None if base_values[period] == 0 else base_values[period]
                                                 elif len(idx) == 4 and pd.notna(idx[3]):
-                                                    # Growth metrics - we'll skip combining these for now
-                                                    pass
+                                                    # Growth metrics - collect them separately
+                                                    if idx[3] == 'qoq growth':
+                                                        for period in df.columns:
+                                                            if period not in qoq_values:
+                                                                qoq_values[period] = []
+                                                            val = df.loc[idx, period]
+                                                            if pd.notna(val):
+                                                                qoq_values[period].append(val)
+                                                    elif idx[3] == 'yoy growth':
+                                                        for period in df.columns:
+                                                            if period not in yoy_values:
+                                                                yoy_values[period] = []
+                                                            val = df.loc[idx, period]
+                                                            if pd.notna(val):
+                                                                yoy_values[period].append(val)
                                     
                                     # Add combined base row
                                     if base_values:
                                         row_data = {'Company': ticker, 'Type': ''}
                                         row_data.update(base_values)
                                         comparison_data.append(row_data)
+                                    
+                                    # Add growth rows if enabled
+                                    if show_qoq and qoq_values:
+                                        qoq_row = {'Company': ticker, 'Type': 'qoq growth'}
+                                        for period, values in qoq_values.items():
+                                            if values:
+                                                # Average the growth rates
+                                                qoq_row[period] = sum(values) / len(values)
+                                            else:
+                                                qoq_row[period] = None
+                                        comparison_data.append(qoq_row)
+                                    
+                                    if show_yoy and yoy_values:
+                                        yoy_row = {'Company': ticker, 'Type': 'yoy growth'}
+                                        for period, values in yoy_values.items():
+                                            if values:
+                                                # Average the growth rates
+                                                yoy_row[period] = sum(values) / len(values)
+                                            else:
+                                                yoy_row[period] = None
+                                        comparison_data.append(yoy_row)
                                 
                                 else:
                                     # Single metric (legacy)
@@ -911,6 +957,10 @@ if st.session_state.fetched_data is not None:
                                             if len(idx) == 4 and pd.isna(idx[3]):
                                                 row_data = {'Company': ticker, 'Type': ''}
                                             elif len(idx) == 4 and pd.notna(idx[3]):
+                                                # Check if we should include this growth metric
+                                                if (idx[3] == 'qoq growth' and not show_qoq) or \
+                                                   (idx[3] == 'yoy growth' and not show_yoy):
+                                                    continue
                                                 row_data = {'Company': ticker, 'Type': idx[3]}
                                             else:
                                                 continue
@@ -924,24 +974,11 @@ if st.session_state.fetched_data is not None:
                             comp_df = pd.DataFrame(comparison_data)
                             comp_df = comp_df.set_index(['Company', 'Type'])
                             
-                            # Format the display
-                            formatted_data = {}
-                            for col in comp_df.columns:
-                                formatted_col = []
-                                for idx, val in zip(comp_df.index, comp_df[col]):
-                                    if pd.isna(val):
-                                        formatted_col.append("")
-                                    elif "growth" in str(idx[1]):
-                                        formatted_col.append(f"{val:.1f}%")
-                                    else:
-                                        # Check if value needs to be in millions
-                                        if abs(val) >= 1000000:
-                                            formatted_col.append(f"{val/1000000:,.0f}")
-                                        else:
-                                            formatted_col.append(f"{val:,.0f}")
-                                formatted_data[col] = formatted_col
-                            
-                            formatted_df = pd.DataFrame(formatted_data, index=comp_df.index)
+                            # Format the display using utility function
+                            formatted_df = format_dataframe_for_display(
+                                comp_df, 
+                                include_growth={'qoq': show_qoq, 'yoy': show_yoy}
+                            )
                             
                             # Add units to group name if needed
                             display_name = group['name']
@@ -967,9 +1004,21 @@ if st.session_state.fetched_data is not None:
                             row_values = df.loc[idx]
                             needs_mm[idx] = any(abs(val) >= 1000000 for val in row_values if pd.notna(val))
                     
+                    # Filter based on growth metrics checkboxes
+                    indices_to_keep = []
+                    for idx in df.index:
+                        if len(idx) == 4 and pd.isna(idx[3]):
+                            indices_to_keep.append(idx)  # Always keep base metrics
+                        elif len(idx) == 4 and pd.notna(idx[3]):
+                            if (idx[3] == 'qoq growth' and show_qoq) or \
+                               (idx[3] == 'yoy growth' and show_yoy):
+                                indices_to_keep.append(idx)
+                    
+                    display_df = df.loc[indices_to_keep].copy()
+                    
                     # Create new index
                     new_index = []
-                    for idx in df.index:
+                    for idx in display_df.index:
                         if len(idx) == 4 and pd.isna(idx[3]):
                             desc = idx[1]
                             if needs_mm.get(idx, False) and ", mm" not in desc:
@@ -982,26 +1031,13 @@ if st.session_state.fetched_data is not None:
                                 desc = f"{desc}, mm"
                             new_index.append(f"{desc} - {idx[3]}")
                     
-                    display_df = df.copy()
                     display_df.index = new_index
                     
-                    # Format values
-                    formatted_data = {}
-                    for col in display_df.columns:
-                        formatted_col = []
-                        for idx, val in zip(display_df.index, display_df[col]):
-                            if pd.isna(val):
-                                formatted_col.append("")
-                            elif "qoq growth" in idx or "yoy growth" in idx:
-                                formatted_col.append(f"{val:.1f}%")
-                            else:
-                                if abs(val) >= 1000000:
-                                    formatted_col.append(f"{val/1000000:,.0f}")
-                                else:
-                                    formatted_col.append(f"{val:,.0f}")
-                        formatted_data[col] = formatted_col
-                    
-                    formatted_df = pd.DataFrame(formatted_data, index=display_df.index)
+                    # Format values using utility function
+                    formatted_df = format_dataframe_for_display(
+                        display_df,
+                        include_growth={'qoq': show_qoq, 'yoy': show_yoy}
+                    )
                     st.dataframe(formatted_df, use_container_width=True)
                     st.markdown("---")
         
@@ -1090,42 +1126,20 @@ if st.session_state.fetched_data is not None:
                 if chart_data:
                     chart_df = pd.DataFrame(chart_data)
                     
-                    # Sort periods to show oldest on the left, most recent on the right
-                    unique_periods = sorted(chart_df['Period'].unique())
-                    chart_df['Period'] = pd.Categorical(chart_df['Period'], categories=unique_periods, ordered=True)
+                    # Determine if values need mm suffix
+                    needs_mm = any(abs(v) >= 1000000 for v in chart_df['Value'])
+                    y_label = add_mm_suffix(selected_group_name, needs_mm)
                     
-                    # Create line chart
-                    fig = px.line(chart_df, x='Period', y='Value', color='Company',
-                                  title=f"{selected_group_name} Comparison ({period_type})",
-                                  markers=True)
-                    
-                    # Update layout
-                    fig.update_layout(
-                        xaxis_title="Period",
-                        yaxis_title=selected_group_name + (", mm" if any(abs(v) >= 1 for v in chart_df['Value']) else ""),
-                        hovermode='x unified',
-                        height=500
+                    # Create line chart using utility function
+                    fig = create_line_chart(
+                        chart_df,
+                        x_col='Period',
+                        y_col='Value',
+                        color_col='Company',
+                        title=f"{selected_group_name} Comparison ({period_type})",
+                        y_label=y_label,
+                        period_type=period_type
                     )
-                    
-                    # Add year separators for quarterly view
-                    if period_type == "Quarterly" and len(unique_periods) > 0:
-                        year_transitions = []
-                        last_year = unique_periods[0].split('-')[1]
-                        
-                        for i, period in enumerate(unique_periods[1:], 1):
-                            current_year = period.split('-')[1]
-                            if current_year != last_year:
-                                year_transitions.append((i-0.5, current_year))
-                                last_year = current_year
-                        
-                        for position, year in year_transitions:
-                            fig.add_vline(
-                                x=position,
-                                line_dash="dash",
-                                line_color="gray",
-                                annotation_text=year,
-                                annotation_position="top"
-                            )
                     
                     st.plotly_chart(fig, use_container_width=True)
                     
@@ -1170,14 +1184,15 @@ if st.session_state.fetched_data is not None:
                             if qoq_data:
                                 qoq_df = pd.DataFrame(qoq_data)
                                 
-                                # Sort periods to show oldest on the left, most recent on the right
-                                unique_periods = sorted(qoq_df['Period'].unique())
-                                qoq_df['Period'] = pd.Categorical(qoq_df['Period'], categories=unique_periods, ordered=True)
-                                
-                                fig_qoq = px.bar(qoq_df, x='Period', y='Growth %', color='Company',
-                                                title="Quarter-over-Quarter Growth %",
-                                                barmode='group')
-                                fig_qoq.update_layout(yaxis_tickformat=".1f")
+                                # Create bar chart using utility function
+                                fig_qoq = create_bar_chart(
+                                    qoq_df,
+                                    x_col='Period',
+                                    y_col='Growth %',
+                                    color_col='Company',
+                                    title="Quarter-over-Quarter Growth %",
+                                    barmode='group'
+                                )
                                 st.plotly_chart(fig_qoq, use_container_width=True)
                             else:
                                 st.info("No QoQ growth data available")
@@ -1222,14 +1237,15 @@ if st.session_state.fetched_data is not None:
                         if yoy_data:
                             yoy_df = pd.DataFrame(yoy_data)
                             
-                            # Sort periods to show oldest on the left, most recent on the right
-                            unique_periods = sorted(yoy_df['Period'].unique())
-                            yoy_df['Period'] = pd.Categorical(yoy_df['Period'], categories=unique_periods, ordered=True)
-                            
-                            fig_yoy = px.bar(yoy_df, x='Period', y='Growth %', color='Company',
-                                            title=f"Year-over-Year Growth % ({period_type})",
-                                            barmode='group')
-                            fig_yoy.update_layout(yaxis_tickformat=".1f")
+                            # Create bar chart using utility function
+                            fig_yoy = create_bar_chart(
+                                yoy_df,
+                                x_col='Period',
+                                y_col='Growth %',
+                                color_col='Company',
+                                title=f"Year-over-Year Growth % ({period_type})",
+                                barmode='group'
+                            )
                             st.plotly_chart(fig_yoy, use_container_width=True)
                         else:
                             st.info("No YoY growth data available")
@@ -1237,7 +1253,7 @@ if st.session_state.fetched_data is not None:
                     st.warning("No data available for charting")
             else:
                 st.info("No metric groups available. Create metric groups in the Data Table tab first.")
-    
+        
     else:
         # Single company mode (existing logic)
         df = st.session_state.fetched_data
@@ -1399,26 +1415,27 @@ if st.session_state.fetched_data is not None:
                         desc = f"{desc}, mm"
                     new_index.append(f"{desc} - {idx[3]}")
             
-            display_df.index = new_index
-            
-            # Create a formatted copy for display
-            formatted_data = {}
-            for col in display_df.columns:
-                formatted_col = []
-                for idx, val in zip(display_df.index, display_df[col]):
-                    if pd.isna(val):
-                        formatted_col.append("")
-                    elif "qoq growth" in idx or "yoy growth" in idx:
-                        formatted_col.append(f"{val:.1f}%")
+            # Check for duplicates and make unique if necessary
+            if len(new_index) != len(set(new_index)):
+                # Add counter to duplicates
+                seen = {}
+                unique_index = []
+                for idx in new_index:
+                    if idx in seen:
+                        seen[idx] += 1
+                        unique_index.append(f"{idx} ({seen[idx]})")
                     else:
-                        # Check if value has more than 6 digits
-                        if abs(val) >= 1000000:  # 1 million or more
-                            formatted_col.append(f"{val/1000000:,.0f}")
-                        else:
-                            formatted_col.append(f"{val:,.0f}")
-                formatted_data[col] = formatted_col
+                        seen[idx] = 0
+                        unique_index.append(idx)
+                display_df.index = unique_index
+            else:
+                display_df.index = new_index
             
-            formatted_df = pd.DataFrame(formatted_data, index=display_df.index)
+            # Create a formatted copy for display using utility function
+            formatted_df = format_dataframe_for_display(
+                display_df,
+                include_growth={'qoq': show_qoq, 'yoy': show_yoy}
+            )
             
             # Style the dataframe with borders
             def style_borders(styler):
@@ -1648,48 +1665,10 @@ if st.session_state.fetched_data is not None:
     with display_tab3:
         st.write("### Download Options")
         
-        col1, col2 = st.columns(2)
+        # Only Excel download button
+        col1, col2, col3 = st.columns([1, 1, 2])
         
         with col1:
-            # CSV download
-            csv_buffer = BytesIO()
-            
-            # Convert to long format for CSV
-            long_data = []
-            for idx, row in df.iterrows():
-                if isinstance(idx, tuple):
-                    if len(idx) == 4 and pd.isna(idx[3]):
-                        kpi_code, kpi_desc, units = idx[0], idx[1], idx[2]
-                        metric_type = 'Value'
-                    elif len(idx) == 4 and pd.notna(idx[3]):
-                        kpi_code, kpi_desc, units, metric_type = idx[0], idx[1], idx[2], idx[3]
-                        if 'growth' in str(metric_type):
-                            units = 'Percentage'
-                
-                for period, value in row.items():
-                    if pd.notna(value):
-                        long_data.append({
-                            'ticker': st.session_state.selected_ticker,
-                            'company_name': company['name'],
-                            'kpi_code': kpi_code,
-                            'kpi_description': kpi_desc,
-                            'period': period,
-                            'metric_type': metric_type,
-                            'value': value,
-                            'units': units
-                        })
-            
-            csv_df = pd.DataFrame(long_data)
-            csv_df.to_csv(csv_buffer, index=False)
-            
-            st.download_button(
-                label="📄 Download as CSV",
-                data=csv_buffer.getvalue(),
-                file_name=f"{st.session_state.selected_ticker}_financial_data_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
-        
-        with col2:
             # Excel download
             excel_buffer = BytesIO()
             
