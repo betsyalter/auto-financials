@@ -23,11 +23,38 @@ def to_excel_multi_sheets(data_dict: Dict[str, pd.DataFrame], file_name: str) ->
             for char in ['/', '\\', '?', '*', '[', ']', ':']:
                 sheet_name = sheet_name.replace(char, '_')
             
-            # Write DataFrame to sheet
-            df.to_excel(writer, sheet_name=sheet_name, index=True)
+            # Reset index to make the metric name a regular column
+            df_export = df.reset_index()
+            # Rename the index column to empty string for cleaner look
+            df_export.columns = [''] + list(df.columns)
             
-            # Auto-adjust column widths using openpyxl
+            # Write DataFrame to sheet without index
+            df_export.to_excel(writer, sheet_name=sheet_name, index=False)
+            
+            # Get the worksheet for formatting
             worksheet = writer.sheets[sheet_name]
+            
+            # Apply formatting
+            from openpyxl.styles import numbers
+            
+            # Format cells - start from row 2 (after header)
+            for row_idx, row in enumerate(df_export.itertuples(index=False), start=2):
+                metric_name = row[0]  # First column is the metric name
+                
+                # Format data columns (skip first column which is metric name)
+                for col_idx, value in enumerate(row[1:], start=2):  # Start from column B
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    
+                    if pd.notna(value) and isinstance(value, (int, float)):
+                        if "growth" in str(metric_name).lower():
+                            # Format as percentage with 1 decimal
+                            cell.number_format = '0.0%'
+                            cell.value = value / 100  # Convert to percentage
+                        else:
+                            # Format as number with comma separator
+                            cell.number_format = '#,##0'
+            
+            # Auto-adjust column widths
             for column in worksheet.columns:
                 max_length = 0
                 column_letter = column[0].column_letter
