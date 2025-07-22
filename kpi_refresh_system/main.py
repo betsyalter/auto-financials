@@ -19,6 +19,7 @@ from src.csv_exporter import CSVExporter
 from src.scheduler import KPIScheduler
 from kpi_discovery import KPIDiscoveryTool
 from csin_discovery import CSINDiscoveryTool
+from src.utils.paths import resolve_path
 
 class KPIRefreshApp:
     def __init__(self, config_path: str = "config/config.yaml"):
@@ -26,8 +27,16 @@ class KPIRefreshApp:
         self.setup_logging()
         
         # Load mappings
-        self.company_mappings = pd.read_csv('config/company_mappings.csv')
-        self.kpi_mappings = pd.read_csv('config/kpi_mappings.csv')
+        # Try direct path first (for deployment), then resolve_path
+        company_mappings_path = Path('config/company_mappings.csv')
+        if not company_mappings_path.exists():
+            company_mappings_path = resolve_path('kpi_refresh_system', 'config', 'company_mappings.csv')
+        self.company_mappings = pd.read_csv(company_mappings_path)
+        
+        kpi_mappings_path = Path('config/kpi_mappings.csv')
+        if not kpi_mappings_path.exists():
+            kpi_mappings_path = resolve_path('kpi_refresh_system', 'config', 'kpi_mappings.csv')
+        self.kpi_mappings = pd.read_csv(kpi_mappings_path)
         
         # Initialize components
         self.client = CanalystClient(self.config)
@@ -387,7 +396,7 @@ def add_company(ticker, add):
         
         # Append to existing mappings
         updated_mappings = pd.concat([app.company_mappings, new_row], ignore_index=True)
-        updated_mappings.to_csv('config/company_mappings.csv', index=False)
+        updated_mappings.to_csv(resolve_path('kpi_refresh_system', 'config', 'company_mappings.csv'), index=False)
         
         click.echo(f"\n✅ Successfully added {ticker} to company_mappings.csv")
         click.echo(f"\nNext steps:")

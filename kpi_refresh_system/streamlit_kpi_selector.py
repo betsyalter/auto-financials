@@ -3,6 +3,8 @@ import pandas as pd
 from src.canalyst_client import CanalystClient
 from src.config import load_config
 import json
+from src.utils.paths import resolve_path
+from pathlib import Path
 
 st.set_page_config(page_title="KPI Selector", layout="wide")
 
@@ -13,7 +15,11 @@ def get_client():
 
 @st.cache_data
 def load_company_mappings():
-    return pd.read_csv('config/company_mappings.csv')
+    # Try direct path first (for deployment), then resolve_path
+    mappings_path = Path('config/company_mappings.csv')
+    if not mappings_path.exists():
+        mappings_path = resolve_path('kpi_refresh_system', 'config', 'company_mappings.csv')
+    return pd.read_csv(mappings_path)
 
 @st.cache_data
 def get_company_kpis(csin: str):

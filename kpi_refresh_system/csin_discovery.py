@@ -9,6 +9,7 @@ from pathlib import Path
 from src.canalyst_client import CanalystClient
 from loguru import logger
 import csv
+from src.utils.paths import resolve_path
 
 console = Console()
 
@@ -422,8 +423,16 @@ class CSINDiscoveryTool:
         mapping_df.rename(columns={'search_ticker': 'ticker'}, inplace=True)
         
         # Save files
-        mapping_df.to_csv('config/company_mappings.csv', index=False)
-        df.to_csv('config/company_discovery_full.csv', index=False)
+        # Try direct path first (for deployment), then resolve_path
+        mappings_path = Path('config/company_mappings.csv')
+        if not mappings_path.parent.exists():
+            mappings_path = resolve_path('kpi_refresh_system', 'config', 'company_mappings.csv')
+        mapping_df.to_csv(mappings_path, index=False)
+        
+        discovery_path = Path('config/company_discovery_full.csv')
+        if not discovery_path.parent.exists():
+            discovery_path = resolve_path('kpi_refresh_system', 'config', 'company_discovery_full.csv')
+        df.to_csv(discovery_path, index=False)
         
         console.print(f"\n[green]Exported {len(df)} companies to:[/green]")
         console.print("  - config/company_mappings.csv (simplified)")

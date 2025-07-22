@@ -7,6 +7,8 @@ import sys
 from datetime import datetime
 import json
 from io import BytesIO
+import tenacity
+import requests
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -574,7 +576,12 @@ if (hasattr(st.session_state, 'company_data') and st.session_state.company_data)
                             st.success(f"Data fetched successfully for {len(all_company_data)} companies!")
                             
                         except Exception as e:
-                            st.error(f"Error fetching data: {str(e)}")
+                            if isinstance(e, (tenacity.RetryError, requests.ConnectionError)):
+                                st.error(f"Connection problem fetching data.")
+                                if st.button("🔁 Retry", key="retry_multi_fetch"):
+                                    st.rerun()
+                            else:
+                                st.error(f"Error fetching data: {str(e)}")
     
     elif 'available_metrics' in st.session_state:
         # Single company mode (existing interface)
@@ -860,7 +867,12 @@ if (hasattr(st.session_state, 'company_data') and st.session_state.company_data)
                                 st.success("Data fetched successfully!")
                             
                         except Exception as e:
-                            st.error(f"Error fetching data: {str(e)}")
+                            if isinstance(e, (tenacity.RetryError, requests.ConnectionError)):
+                                st.error(f"Connection problem fetching data.")
+                                if st.button("🔁 Retry", key="retry_single_fetch"):
+                                    st.rerun()
+                            else:
+                                st.error(f"Error fetching data: {str(e)}")
 
 # Step 3: Display and Export Data
 if st.session_state.fetched_data is not None:
@@ -1021,7 +1033,19 @@ if st.session_state.fetched_data is not None:
                                 display_name = f"{display_name}, mm"
                             
                             st.markdown(f"**{display_name}**")
-                            st.dataframe(formatted_df, use_container_width=True)
+                            
+                            # Guarantee uniqueness - only reset if not unique
+                            if not formatted_df.index.is_unique:
+                                formatted_df = formatted_df.reset_index(drop=True)
+                            if not formatted_df.columns.is_unique:
+                                formatted_df.columns = pd.io.parsers.ParserBase({'names':formatted_df.columns})._maybe_dedup_names(formatted_df.columns)
+                            
+                            # Display without styling
+                            st.dataframe(
+                                formatted_df,
+                                use_container_width=True,
+                                column_config={c: st.column_config.NumberColumn(format="%.2f") for c in formatted_df.select_dtypes('number').columns}
+                            )
                             st.markdown("---")
                 
             else:  # By Company view
@@ -1051,29 +1075,56 @@ if st.session_state.fetched_data is not None:
                     
                     display_df = df.loc[indices_to_keep].copy()
                     
-                    # Create new index
-                    new_index = []
+                    # Create a copy and modify the multiindex to add mm suffix
+                    new_multiindex = []
                     for idx in display_df.index:
-                        if len(idx) == 4 and pd.isna(idx[3]):
-                            desc = idx[1]
-                            if needs_mm.get(idx, False) and ", mm" not in desc:
-                                desc = f"{desc}, mm"
-                            new_index.append(desc)
-                        elif len(idx) == 4 and pd.notna(idx[3]):
-                            base_idx = idx[:-1] + (pd.NA,)
-                            desc = idx[1]
-                            if needs_mm.get(base_idx, False) and ", mm" not in desc:
-                                desc = f"{desc}, mm"
-                            new_index.append(f"{desc} - {idx[3]}")
+                        if len(idx) == 4:
+                            # Create a new tuple with modified description
+                            if pd.isna(idx[3]) and needs_mm.get(idx, False) and ", mm" not in idx[1]:
+                                new_idx = (idx[0], f"{idx[1]}, mm", idx[2], idx[3])
+                            elif pd.notna(idx[3]):
+                                # For growth rows, check if base needs mm
+                                base_idx = idx[:-1] + (pd.NA,)
+                                if needs_mm.get(base_idx, False) and ", mm" not in idx[1]:
+                                    new_idx = (idx[0], f"{idx[1]}, mm", idx[2], idx[3])
+                                else:
+                                    new_idx = idx
+                            else:
+                                new_idx = idx
+                            new_multiindex.append(new_idx)
+                        else:
+                            new_multiindex.append(idx)
                     
-                    display_df.index = new_index
+                    display_df.index = pd.MultiIndex.from_tuples(new_multiindex)
                     
                     # Format values using utility function
                     formatted_df = format_dataframe_for_display(
                         display_df,
                         include_growth={'qoq': show_qoq, 'yoy': show_yoy}
                     )
-                    st.dataframe(formatted_df, use_container_width=True)
+                    
+                    # Create simple index for display
+                    new_index = []
+                    for idx in formatted_df.index:
+                        if len(idx) == 4 and pd.isna(idx[3]):
+                            new_index.append(idx[1])
+                        elif len(idx) == 4 and pd.notna(idx[3]):
+                            new_index.append(f"{idx[1]} - {idx[3]}")
+                    
+                    formatted_df.index = new_index
+                    
+                    # Guarantee uniqueness - only reset if not unique
+                    if not formatted_df.index.is_unique:
+                        formatted_df = formatted_df.reset_index(drop=True)
+                    if not formatted_df.columns.is_unique:
+                        formatted_df.columns = pd.io.parsers.ParserBase({'names':formatted_df.columns})._maybe_dedup_names(formatted_df.columns)
+                    
+                    # Display without styling
+                    st.dataframe(
+                        formatted_df,
+                        use_container_width=True,
+                        column_config={c: st.column_config.NumberColumn(format="%.2f") for c in formatted_df.select_dtypes('number').columns}
+                    )
                     st.markdown("---")
         
         with display_tab2:
@@ -1423,32 +1474,54 @@ if st.session_state.fetched_data is not None:
                 st.warning("Please select at least one metric to display")
                 display_df = pd.DataFrame()  # Empty dataframe
             
+            # Check which rows need ", mm" suffix (values >= 1M) BEFORE formatting
+            needs_mm = {}
             if not display_df.empty:
-                # Check which rows need ", mm" suffix (values >= 1M)
-                needs_mm = {}
                 for idx in display_df.index:
                     if len(idx) == 4 and pd.isna(idx[3]):  # Base row only
                         row_values = display_df.loc[idx]
                         # Check if any value in this row is >= 1M
                         needs_mm[idx] = any(abs(val) >= 1000000 for val in row_values if pd.notna(val))
             
+            # Create a copy and modify the index to add mm suffix
+            display_df_copy = display_df.copy()
+            new_multiindex = []
+            for idx in display_df_copy.index:
+                if len(idx) == 4:
+                    # Create a new tuple with modified description
+                    if pd.isna(idx[3]) and needs_mm.get(idx, False) and ", mm" not in idx[1]:
+                        new_idx = (idx[0], f"{idx[1]}, mm", idx[2], idx[3])
+                    elif pd.notna(idx[3]):
+                        # For growth rows, check if base needs mm
+                        base_idx = idx[:-1] + (pd.NA,)
+                        if needs_mm.get(base_idx, False) and ", mm" not in idx[1]:
+                            new_idx = (idx[0], f"{idx[1]}, mm", idx[2], idx[3])
+                        else:
+                            new_idx = idx
+                    else:
+                        new_idx = idx
+                    new_multiindex.append(new_idx)
+                else:
+                    new_multiindex.append(idx)
+            
+            display_df_copy.index = pd.MultiIndex.from_tuples(new_multiindex)
+            
+            # Create a formatted copy for display using utility function
+            formatted_df = format_dataframe_for_display(
+                display_df_copy,
+                include_growth={'qoq': show_qoq, 'yoy': show_yoy}
+            )
+            
             # Remove the first level of the index (KPI code) and create new index
             new_index = []
-            for idx in display_df.index:
+            for idx in formatted_df.index:
                 if len(idx) == 4 and pd.isna(idx[3]):
-                    # Base row: show description, add ", mm" if needed
-                    desc = idx[1]
-                    if needs_mm.get(idx, False) and ", mm" not in desc:
-                        desc = f"{desc}, mm"
-                    new_index.append(desc)
+                    # Base row: show description only
+                    new_index.append(idx[1])
                 elif len(idx) == 4 and pd.notna(idx[3]):
                     # Growth row: show description + growth type
-                    # Check if the base row needs mm
-                    base_idx = idx[:-1] + (pd.NA,)
-                    desc = idx[1]
-                    if needs_mm.get(base_idx, False) and ", mm" not in desc:
-                        desc = f"{desc}, mm"
-                    new_index.append(f"{desc} - {idx[3]}")
+                    new_index.append(f"{idx[1]} - {idx[3]}")
+            
             
             # Check for duplicates and make unique if necessary
             if len(new_index) != len(set(new_index)):
@@ -1462,42 +1535,23 @@ if st.session_state.fetched_data is not None:
                     else:
                         seen[idx] = 0
                         unique_index.append(idx)
-                display_df.index = unique_index
+                formatted_df.index = unique_index
             else:
-                display_df.index = new_index
+                formatted_df.index = new_index
             
-            # Create a formatted copy for display using utility function
-            formatted_df = format_dataframe_for_display(
-                display_df,
-                include_growth={'qoq': show_qoq, 'yoy': show_yoy}
+            # Guarantee uniqueness - only reset if not unique
+            if not formatted_df.index.is_unique:
+                formatted_df = formatted_df.reset_index(drop=True)
+            if not formatted_df.columns.is_unique:
+                formatted_df.columns = pd.io.parsers.ParserBase({'names':formatted_df.columns})._maybe_dedup_names(formatted_df.columns)
+            
+            # Display without styling
+            st.dataframe(
+                formatted_df,
+                use_container_width=True,
+                height=600,
+                column_config={c: st.column_config.NumberColumn(format="%.2f") for c in formatted_df.select_dtypes('number').columns}
             )
-            
-            # Style the dataframe with borders
-            def style_borders(styler):
-                # Find the column positions
-                annual_cols = [i for i, col in enumerate(formatted_df.columns) if col.startswith('FY')]
-                quarterly_cols = [i for i, col in enumerate(formatted_df.columns) if col.startswith('Q')]
-                
-                # Border between annual and quarterly (if both exist)
-                if annual_cols and quarterly_cols:
-                    first_quarterly_idx = quarterly_cols[0]
-                    styler = styler.set_properties(
-                        **{'border-left': '3px solid #1f77b4'},
-                        subset=(slice(None), formatted_df.columns[first_quarterly_idx])
-                    )
-                
-                # Borders between years in quarterly data
-                for i, col in enumerate(formatted_df.columns):
-                    if col.startswith('Q1-') and i > 0:
-                        styler = styler.set_properties(
-                            **{'border-left': '2px solid #666'},
-                            subset=(slice(None), col)
-                        )
-                
-                return styler
-            
-            styled_df = formatted_df.style.pipe(style_borders)
-            st.dataframe(styled_df, use_container_width=True, height=600)
     
     with display_tab2:
         # Period type selection

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from src.canalyst_client import CanalystClient
 from loguru import logger
+from src.utils.paths import resolve_path
 
 console = Console()
 
@@ -342,7 +343,14 @@ class KPIDiscoveryTool:
         
         input("\nPress Enter to continue...")
     
-    def export_selections(self, output_path: str = "config/kpi_mappings.csv"):
+    def export_selections(self, output_path: Optional[str] = None):
+        if output_path is None:
+            # Try direct path first (for deployment), then resolve_path
+            output_path = Path('config/kpi_mappings.csv')
+            if not output_path.parent.exists():
+                output_path = resolve_path('kpi_refresh_system', 'config', 'kpi_mappings.csv')
+        else:
+            output_path = Path(output_path)
         """Export selected KPIs to CSV"""
         rows = []
         

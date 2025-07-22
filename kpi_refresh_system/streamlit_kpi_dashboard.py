@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import requests
+from src.utils.paths import resolve_path
 
 st.set_page_config(
     page_title="KPI Dashboard",
@@ -33,7 +34,11 @@ def load_data():
     """Load KPI data from CSV files"""
     try:
         # Load consolidated data
-        df = pd.read_csv('data/csv/consolidated_kpis.csv')
+        # Try direct path first (for deployment), then resolve_path
+        csv_path = Path('data/csv/consolidated_kpis.csv')
+        if not csv_path.exists():
+            csv_path = resolve_path('kpi_refresh_system', 'data', 'csv', 'consolidated_kpis.csv')
+        df = pd.read_csv(csv_path)
         
         # Convert date columns
         df['period_date'] = pd.to_datetime(df['period_date'])
