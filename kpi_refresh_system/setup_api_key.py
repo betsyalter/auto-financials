@@ -20,7 +20,7 @@ def setup_api_key():
     env_path = Path(__file__).parent / '.env'
     
     if env_path.exists():
-        print("⚠️  A .env file already exists.")
+        print("WARNING: A .env file already exists.")
         response = input("Do you want to update the API key? (y/n): ").lower()
         if response != 'y':
             print("Setup cancelled.")
@@ -32,12 +32,12 @@ def setup_api_key():
     api_key = getpass.getpass("API Token: ").strip()
     
     if not api_key:
-        print("❌ No API key provided. Setup cancelled.")
+        print("ERROR: No API key provided. Setup cancelled.")
         return
     
     # Validate it looks like a token
     if len(api_key) < 20:
-        print("❌ That doesn't look like a valid API token (too short).")
+        print("ERROR: That doesn't look like a valid API token (too short).")
         print("   Please check you've copied the entire token.")
         return
     
@@ -46,15 +46,15 @@ def setup_api_key():
         with open(env_path, 'w') as f:
             f.write(f"CANALYST_API_TOKEN={api_key}\n")
         
-        print("\n✅ API key saved successfully to .env file!")
-        print("\n📌 Important reminders:")
+        print("\nSUCCESS: API key saved successfully to .env file!")
+        print("\nImportant reminders:")
         print("   - This .env file is NOT tracked by git (safe)")
         print("   - Keep your API key secret and never commit it")
         print("   - Each team member needs to run this script locally")
         print("\nYou can now run the application!")
         
     except Exception as e:
-        print(f"\n❌ Error saving API key: {e}")
+        print(f"\nERROR: Error saving API key: {e}")
         return
 
 if __name__ == "__main__":

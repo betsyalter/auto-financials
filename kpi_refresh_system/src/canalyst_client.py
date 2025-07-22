@@ -13,9 +13,20 @@ class CanalystClient:
     def __init__(self, config: Dict):
         self.base_url = config['api']['base_url']
         self.timeout = config['api']['timeout']
+        
+        # Try multiple sources for API token
         self.api_token = os.getenv('CANALYST_API_TOKEN')
+        
+        # If not in env, try Streamlit secrets
         if not self.api_token:
-            raise ValueError("CANALYST_API_TOKEN environment variable not set")
+            try:
+                import streamlit as st
+                self.api_token = st.secrets.get("CANALYST_API_TOKEN")
+            except:
+                pass
+        
+        if not self.api_token:
+            raise ValueError("CANALYST_API_TOKEN not found. Please set it in .env file or Streamlit secrets.")
         
         self.session = requests.Session()
         self.session.headers.update({
