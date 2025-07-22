@@ -20,6 +20,7 @@ from src.display_utils import (
     create_line_chart, create_bar_chart, format_dataframe_for_display,
     create_period_columns
 )
+from src.utils.export_utils import to_excel_multi_sheets
 from csin_discovery import CSINDiscoveryTool
 from main import KPIRefreshApp
 
@@ -1339,6 +1340,49 @@ if st.session_state.fetched_data is not None:
                     st.warning("No data available for charting")
             else:
                 st.info("No metric groups available. Create metric groups in the Data Table tab first.")
+        
+        with display_tab3:
+            st.write("### Download Options")
+            
+            # Prepare data for multi-sheet Excel
+            if all_company_data:
+                # Create formatted DataFrames for each company
+                excel_data = {}
+                
+                for ticker, df in all_company_data.items():
+                    # Format data for Excel (similar to single company logic)
+                    excel_df = df.copy()
+                    
+                    # Create new index without KPI codes
+                    new_index = []
+                    for idx in excel_df.index:
+                        if len(idx) == 4 and pd.isna(idx[3]):
+                            new_index.append(idx[1])  # Just description
+                        elif len(idx) == 4 and pd.notna(idx[3]):
+                            new_index.append(f"{idx[1]} - {idx[3]}")  # Description + growth type
+                    
+                    excel_df.index = new_index
+                    excel_data[ticker] = excel_df
+                
+                # Download button
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    filename = f"financial_data_comparison_{timestamp}.xlsx"
+                    
+                    excel_bytes, suggested_filename = to_excel_multi_sheets(excel_data, filename)
+                    
+                    st.download_button(
+                        label="📊 Download All Companies (Excel)",
+                        data=excel_bytes,
+                        file_name=suggested_filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    
+                with col2:
+                    st.info(f"Each company will be in a separate sheet")
+            else:
+                st.warning("No data available for download")
         
     else:
         # Single company mode (existing logic)
